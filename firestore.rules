@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isCoreTeam() {
+      return isSignedIn() && userDocExists() && getUserData().role == 'core_team';
+    }
+
+    function isApprovedBOD() {
+      return isSignedIn() && userDocExists() && getUserData().role == 'bod' && getUserData().bodStatus == 'approved';
+    }
+
+    function getAssignedAvenue() {
+      return getUserData().assignedAvenue;
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      // Authenticated users can read member profiles
+      allow read: if isSignedIn();
+
+      // Users can create their own profile
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // Only Core Team can approve BOD or change roles
+      allow update: if isCoreTeam() || (isSignedIn() && request.auth.uid == userId);
+      allow delete: if isCoreTeam();
+    }
+
+    // 2. Events collection: Public can view, Core & approved BOD can write
+    match /events/{eventId} {
+      allow read: true;
+
+      // Create: Core Team or approved BOD matching avenue
+      allow create: if isCoreTeam() || (
+        isApprovedBOD() &&
+        request.resource.data.avenue == getAssignedAvenue()
+      );
+
+      // Update: Core Team or approved BOD matching avenue
+      allow update: if isCoreTeam() || (
+        isApprovedBOD() &&
+        resource.data.avenue == getAssignedAvenue() &&
+        request.resource.data.avenue == getAssignedAvenue()
+      );
+
+      // Delete: Core Team or approved BOD matching avenue
+      allow delete: if isCoreTeam() || (
+        isApprovedBOD() &&
+        resource.data.avenue == getAssignedAvenue()
+      );
+    }
+
+    // 3. Projects collection: Public can view, Core & approved BOD can write
+    match /projects/{projectId} {
+      allow read: true;
+      allow create: if isCoreTeam() || (
+        isApprovedBOD() &&
+        request.resource.data.avenue == getAssignedAvenue()
+      );
+      allow update: if isCoreTeam() || (
+        isApprovedBOD() &&
+        resource.data.avenue == getAssignedAvenue() &&
+        request.resource.data.avenue == getAssignedAvenue()
+      );
+      allow delete: if isCoreTeam() || (
+        isApprovedBOD() &&
+        resource.data.avenue == getAssignedAvenue()
+      );
+    }
+
+    // 4. Achievements collection: Public can view, Core can write
+    match /achievements/{achievementId} {
+      allow read: true;
+      allow write: if isCoreTeam();
+    }
+
+    // 5. Gallery collection: Public can view, Core can write
+    match /gallery/{galleryId} {
+      allow read: true;
+      allow write: if isCoreTeam();
+    }
+
+    // 6. Applications collection (Join Us forms)
+    match /applications/{appId} {
+      // Anyone can submit application
+      allow create: true;
+      // Only Core Team can read & manage applications
+      allow read, update, delete: if isCoreTeam();
+    }
+
+    // 7. Settings collection
+    match /settings/{settingId} {
+      allow read: true;
+      allow write: if isCoreTeam();
+    }
+
+    // 8. Team Profiles & Photo collection: Public can view, Authenticated members can manage per permission
+    match /team_profiles/{profileId} {
+      allow read: true;
+      allow write: if isSignedIn();
+    }
+  }
+}
