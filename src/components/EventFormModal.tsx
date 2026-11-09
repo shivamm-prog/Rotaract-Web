@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { AvenueOfService, EventStatus, RotaractEvent } from '../types/rotaract';
-import { X, Calendar, Edit3, AlertCircle, Lock, ShieldCheck, ShieldAlert } from 'lucide-react';
+import {
+  X,
+  Edit3,
+  AlertCircle,
+  Lock,
+  ShieldCheck,
+  ShieldAlert,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface EventFormModalProps {
   isOpen: boolean;
   event: RotaractEvent | null;
   onClose: () => void;
-  onSave: (eventData: Omit<RotaractEvent, 'id' | 'createdAt' | 'updatedAt'>, id?: string) => void;
+  onSave: (
+    eventData: Omit<RotaractEvent, 'id' | 'createdAt' | 'updatedAt'>,
+    id?: string
+  ) => void;
 }
 
 const AVENUES: AvenueOfService[] = [
@@ -62,9 +72,18 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
       setChairperson(event.chairperson);
       setCoChairperson(event.coChairperson || '');
       setBudget(String(event.budget));
-      setActualExpense(event.actualExpense ? String(event.actualExpense) : '');
+      setActualExpense(
+        event.actualExpense !== undefined && event.actualExpense !== null
+          ? String(event.actualExpense)
+          : ''
+      );
       setExpectedAttendees(String(event.expectedAttendees));
-      setActualAttendees(event.actualAttendees ? String(event.actualAttendees) : '');
+      setActualAttendees(
+        event.actualAttendees !== undefined &&
+          event.actualAttendees !== null
+          ? String(event.actualAttendees)
+          : ''
+      );
       setDescription(event.description || '');
       setObjectives(event.objectives || '');
       setRegistrationLink(event.registrationLink || '');
@@ -88,20 +107,23 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
     }
 
     const trimmedTitle = title.trim();
+
     if (!trimmedTitle) {
       setErrorMsg('Event title is required.');
       return;
     }
+
     if (!date) {
       setErrorMsg('Event date is required.');
       return;
     }
+
     if (!venue.trim()) {
       setErrorMsg('Event venue is required.');
       return;
     }
 
-    // If BOD, avenue cannot be altered
+    // If BOD, avenue cannot be altered.
     const targetAvenue = isBOD ? event.avenue : avenue;
 
     onSave(
@@ -114,15 +136,22 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
         endTime,
         venue: venue.trim(),
         chairperson: chairperson.trim() || 'Club Committee',
-        coChairperson: coChairperson.trim() || undefined,
+
+        // Firestore-safe values: never send undefined.
+        coChairperson: coChairperson.trim() || '',
         budget: parseFloat(budget) || 0,
-        actualExpense: actualExpense ? parseFloat(actualExpense) : undefined,
+        actualExpense: actualExpense
+          ? parseFloat(actualExpense)
+          : 0,
         expectedAttendees: parseInt(expectedAttendees, 10) || 50,
-        actualAttendees: actualAttendees ? parseInt(actualAttendees, 10) : undefined,
+        actualAttendees: actualAttendees
+          ? parseInt(actualAttendees, 10)
+          : 0,
+
         description: description.trim(),
         objectives: objectives.trim(),
-        registrationLink: registrationLink.trim() || undefined,
-        reportSummary: reportSummary.trim() || undefined,
+        registrationLink: registrationLink.trim() || '',
+        reportSummary: reportSummary.trim() || '',
         isFlagship,
       },
       event.id
@@ -144,13 +173,21 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#800000] text-white">
               <Edit3 className="h-4 w-4" />
             </div>
+
             <div>
-              <h3 id="edit-event-title" className="text-base font-bold text-gray-900">
+              <h3
+                id="edit-event-title"
+                className="text-base font-bold text-gray-900"
+              >
                 Edit Event: {event.title}
               </h3>
-              <p className="text-xs text-gray-500">Update event details and reports</p>
+
+              <p className="text-xs text-gray-500">
+                Update event details and reports
+              </p>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
@@ -164,37 +201,57 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
         {!hasPermission ? (
           <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-900">
             <ShieldAlert className="h-5 w-5 shrink-0 text-[#800000] mt-0.5" />
+
             <div>
-              <span className="font-extrabold block">Read-Only Permission</span>
+              <span className="font-extrabold block">
+                Read-Only Permission
+              </span>
+
               <p className="mt-0.5 leading-relaxed text-red-800">
-                You are assigned to the <strong>{assignedAvenue}</strong> avenue as a Board of Directors member. You do not have permission to modify events in <strong>{event.avenue}</strong>.
+                You are assigned to the{' '}
+                <strong>{assignedAvenue}</strong> avenue as a Board of
+                Directors member. You do not have permission to modify events
+                in <strong>{event.avenue}</strong>.
               </p>
             </div>
           </div>
         ) : isBOD ? (
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50/50 p-2.5 text-xs text-[#800000]">
             <Lock className="h-4 w-4 shrink-0" />
-            <span>Authorized BOD Editor for <strong>{assignedAvenue}</strong> avenue. Avenue cannot be transferred.</span>
+
+            <span>
+              Authorized BOD Editor for <strong>{assignedAvenue}</strong>{' '}
+              avenue. Avenue cannot be transferred.
+            </span>
           </div>
         ) : (
           <div className="mt-3 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50/60 p-2.5 text-xs text-green-900">
             <ShieldCheck className="h-4 w-4 shrink-0 text-green-700" />
-            <span>Core Team Administrator privileges active. You may modify all parameters including avenue.</span>
+
+            <span>
+              Core Team Administrator privileges active. You may modify all
+              parameters including avenue.
+            </span>
           </div>
         )}
 
         {errorMsg && (
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-50 p-2.5 text-xs text-red-800 border border-red-200">
             <AlertCircle className="h-4 w-4 shrink-0 text-[#800000]" />
+
             <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 space-y-4 text-xs">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto py-4 space-y-4 text-xs"
+        >
           <div>
             <label className="block font-bold text-gray-700 uppercase">
               Event Title <span className="text-[#800000]">*</span>
             </label>
+
             <input
               type="text"
               required
@@ -208,13 +265,17 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block font-bold text-gray-700 uppercase">Avenue of Service</label>
+                <label className="block font-bold text-gray-700 uppercase">
+                  Avenue of Service
+                </label>
+
                 {isBOD && (
                   <span className="text-[10px] text-[#800000] font-bold flex items-center gap-0.5">
                     <Lock className="h-2.5 w-2.5" /> Locked
                   </span>
                 )}
               </div>
+
               <select
                 value={isBOD ? event.avenue : avenue}
                 onChange={(e) => {
@@ -237,40 +298,40 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
               <label className="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-1">
                 Event Status Categorization
               </label>
+
               <div className="grid grid-cols-3 gap-1.5 p-1 bg-gray-100 rounded-lg border border-gray-200">
                 <button
                   type="button"
                   disabled={!hasPermission}
                   onClick={() => setStatus('upcoming')}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${
-                    status === 'upcoming'
+                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${status === 'upcoming'
                       ? 'bg-[#800000] text-white shadow-xs'
                       : 'text-gray-700 hover:text-black'
-                  }`}
+                    }`}
                 >
                   Upcoming
                 </button>
+
                 <button
                   type="button"
                   disabled={!hasPermission}
                   onClick={() => setStatus('live')}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${
-                    status === 'live'
+                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${status === 'live'
                       ? 'bg-[#800000] text-white shadow-xs'
                       : 'text-gray-700 hover:text-black'
-                  }`}
+                    }`}
                 >
                   Live
                 </button>
+
                 <button
                   type="button"
                   disabled={!hasPermission}
                   onClick={() => setStatus('completed')}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${
-                    status === 'completed' || status === 'past'
+                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all disabled:opacity-50 ${status === 'completed' || status === 'past'
                       ? 'bg-[#800000] text-white shadow-xs'
                       : 'text-gray-700 hover:text-black'
-                  }`}
+                    }`}
                 >
                   Past
                 </button>
@@ -280,7 +341,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Date</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Date
+              </label>
+
               <input
                 type="date"
                 required
@@ -290,8 +354,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Start Time</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Start Time
+              </label>
+
               <input
                 type="time"
                 disabled={!hasPermission}
@@ -300,8 +368,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">End Time</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                End Time
+              </label>
+
               <input
                 type="time"
                 disabled={!hasPermission}
@@ -313,7 +385,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-gray-700 uppercase">Venue / Campus Location</label>
+            <label className="block font-bold text-gray-700 uppercase">
+              Venue / Campus Location
+            </label>
+
             <input
               type="text"
               required
@@ -326,7 +401,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Chairperson</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Chairperson
+              </label>
+
               <input
                 type="text"
                 disabled={!hasPermission}
@@ -335,8 +413,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Co-Chairperson</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Co-Chairperson
+              </label>
+
               <input
                 type="text"
                 disabled={!hasPermission}
@@ -349,7 +431,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Budget (₹)</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Budget (₹)
+              </label>
+
               <input
                 type="number"
                 disabled={!hasPermission}
@@ -358,8 +443,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Actual Exp (₹)</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Actual Exp (₹)
+              </label>
+
               <input
                 type="number"
                 disabled={!hasPermission}
@@ -368,8 +457,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Expected Att.</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Expected Att.
+              </label>
+
               <input
                 type="number"
                 disabled={!hasPermission}
@@ -378,8 +471,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-[#800000] disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
+
             <div>
-              <label className="block font-bold text-gray-700 uppercase">Actual Att.</label>
+              <label className="block font-bold text-gray-700 uppercase">
+                Actual Att.
+              </label>
+
               <input
                 type="number"
                 disabled={!hasPermission}
@@ -391,7 +488,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-gray-700 uppercase">Description</label>
+            <label className="block font-bold text-gray-700 uppercase">
+              Description
+            </label>
+
             <textarea
               rows={2}
               disabled={!hasPermission}
@@ -402,7 +502,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
           </div>
 
           <div>
-            <label className="block font-bold text-gray-700 uppercase">Report / Completion Notes</label>
+            <label className="block font-bold text-gray-700 uppercase">
+              Report / Completion Notes
+            </label>
+
             <textarea
               rows={2}
               disabled={!hasPermission}
@@ -421,6 +524,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({
             >
               Cancel
             </button>
+
             <button
               type="submit"
               disabled={!hasPermission}

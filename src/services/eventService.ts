@@ -11,7 +11,9 @@ import {
   setDoc,
   getDoc,
 } from 'firebase/firestore';
+
 import { db } from '../lib/firebase';
+
 import {
   AvenueOfService,
   RotaractEvent,
@@ -34,6 +36,16 @@ export const APPLICATIONS_COLLECTION = 'applications';
 export const TEAM_PROFILES_COLLECTION = 'team_profiles';
 
 /**
+ * Firestore does not accept JavaScript undefined values.
+ * Remove undefined fields before sending data to Firestore.
+ */
+function removeUndefined<T extends Record<string, any>>(data: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
+}
+
+/**
  * Real-time subscription to all shared club events
  */
 export function subscribeToEvents(
@@ -41,7 +53,10 @@ export function subscribeToEvents(
   onError?: (error: Error) => void
 ) {
   try {
-    const q = query(collection(db, EVENTS_COLLECTION), orderBy('date', 'desc'));
+    const q = query(
+      collection(db, EVENTS_COLLECTION),
+      orderBy('date', 'desc')
+    );
 
     return onSnapshot(
       q,
@@ -84,13 +99,23 @@ export function subscribeToEvents(
         onData(events);
       },
       (err) => {
-        console.warn('Firestore events subscription notice:', err.message);
-        if (onError) onError(err);
+        console.warn(
+          'Firestore events subscription notice:',
+          err.message
+        );
+
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
     console.warn('subscribeToEvents init notice:', err);
-    if (onError) onError(err);
+
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -103,7 +128,9 @@ export async function createEventFirestore(
   userProfile: UserProfile
 ): Promise<string> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot create events.');
+    throw new Error(
+      'Permission Denied: General members cannot create events.'
+    );
   }
 
   if (userProfile.role === 'bod') {
@@ -122,14 +149,24 @@ export async function createEventFirestore(
 
   const now = Date.now();
 
-  const payload = {
+  /*
+   * IMPORTANT:
+   * Firestore rejects undefined values.
+   * removeUndefined() removes optional fields such as
+   * coChairperson, registrationLink, reportSummary, etc.
+   * when they are undefined.
+   */
+  const payload = removeUndefined({
     ...eventData,
     createdBy: userProfile.uid,
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  const docRef = await addDoc(collection(db, EVENTS_COLLECTION), payload);
+  const docRef = await addDoc(
+    collection(db, EVENTS_COLLECTION),
+    payload
+  );
 
   return docRef.id;
 }
@@ -144,7 +181,9 @@ export async function updateEventFirestore(
   userProfile: UserProfile
 ): Promise<void> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot edit events.');
+    throw new Error(
+      'Permission Denied: General members cannot edit events.'
+    );
   }
 
   if (userProfile.role === 'bod') {
@@ -165,17 +204,23 @@ export async function updateEventFirestore(
       eventData.avenue !== userProfile.assignedAvenue
     ) {
       throw new Error(
-        `Permission Denied: BOD members cannot transfer events to other avenues.`
+        'Permission Denied: BOD members cannot transfer events to other avenues.'
       );
     }
   }
 
   const docRef = doc(db, EVENTS_COLLECTION, eventId);
 
-  await updateDoc(docRef, {
-    ...eventData,
-    updatedAt: Date.now(),
-  });
+  /*
+   * Remove undefined values before updateDoc().
+   */
+  await updateDoc(
+    docRef,
+    removeUndefined({
+      ...eventData,
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 /**
@@ -187,7 +232,9 @@ export async function deleteEventFirestore(
   userProfile: UserProfile
 ): Promise<void> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot delete events.');
+    throw new Error(
+      'Permission Denied: General members cannot delete events.'
+    );
   }
 
   if (userProfile.role === 'bod') {
@@ -209,9 +256,11 @@ export async function deleteEventFirestore(
   await deleteDoc(docRef);
 }
 
-// -------------------------------------------------------------
-// PROJECTS FIRESTORE SERVICES
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * PROJECTS FIRESTORE SERVICES
+ * -------------------------------------------------------------
+ */
 
 export function subscribeToProjects(
   onData: (projects: ProjectItem[]) => void,
@@ -248,11 +297,16 @@ export function subscribeToProjects(
         onData(projects);
       },
       (err) => {
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -262,7 +316,9 @@ export async function createProjectFirestore(
   userProfile: UserProfile
 ): Promise<string> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot create projects.');
+    throw new Error(
+      'Permission Denied: General members cannot create projects.'
+    );
   }
 
   if (
@@ -276,13 +332,16 @@ export async function createProjectFirestore(
 
   const now = Date.now();
 
-  const payload = {
+  const payload = removeUndefined({
     ...projectData,
     createdAt: now,
     updatedAt: now,
-  };
+  });
 
-  const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), payload);
+  const docRef = await addDoc(
+    collection(db, PROJECTS_COLLECTION),
+    payload
+  );
 
   return docRef.id;
 }
@@ -294,7 +353,9 @@ export async function updateProjectFirestore(
   userProfile: UserProfile
 ): Promise<void> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot edit projects.');
+    throw new Error(
+      'Permission Denied: General members cannot edit projects.'
+    );
   }
 
   if (
@@ -308,10 +369,13 @@ export async function updateProjectFirestore(
 
   const docRef = doc(db, PROJECTS_COLLECTION, projectId);
 
-  await updateDoc(docRef, {
-    ...projectData,
-    updatedAt: Date.now(),
-  });
+  await updateDoc(
+    docRef,
+    removeUndefined({
+      ...projectData,
+      updatedAt: Date.now(),
+    })
+  );
 }
 
 export async function deleteProjectFirestore(
@@ -320,7 +384,9 @@ export async function deleteProjectFirestore(
   userProfile: UserProfile
 ): Promise<void> {
   if (userProfile.role === 'member') {
-    throw new Error('Permission Denied: General members cannot delete projects.');
+    throw new Error(
+      'Permission Denied: General members cannot delete projects.'
+    );
   }
 
   if (
@@ -335,9 +401,11 @@ export async function deleteProjectFirestore(
   await deleteDoc(doc(db, PROJECTS_COLLECTION, projectId));
 }
 
-// -------------------------------------------------------------
-// ACHIEVEMENTS FIRESTORE SERVICES
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * ACHIEVEMENTS FIRESTORE SERVICES
+ * -------------------------------------------------------------
+ */
 
 export function subscribeToAchievements(
   onData: (achievements: AchievementItem[]) => void,
@@ -370,11 +438,16 @@ export function subscribeToAchievements(
         onData(items);
       },
       (err) => {
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -389,10 +462,10 @@ export async function createAchievementFirestore(
     );
   }
 
-  const payload = {
+  const payload = removeUndefined({
     ...data,
     createdAt: Date.now(),
-  };
+  });
 
   const docRef = await addDoc(
     collection(db, ACHIEVEMENTS_COLLECTION),
@@ -412,12 +485,16 @@ export async function deleteAchievementFirestore(
     );
   }
 
-  await deleteDoc(doc(db, ACHIEVEMENTS_COLLECTION, achievementId));
+  await deleteDoc(
+    doc(db, ACHIEVEMENTS_COLLECTION, achievementId)
+  );
 }
 
-// -------------------------------------------------------------
-// GALLERY FIRESTORE SERVICES
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * GALLERY FIRESTORE SERVICES
+ * -------------------------------------------------------------
+ */
 
 export function subscribeToGallery(
   onData: (items: GalleryItem[]) => void,
@@ -454,11 +531,16 @@ export function subscribeToGallery(
         onData(items);
       },
       (err) => {
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -473,12 +555,15 @@ export async function createGalleryItemFirestore(
     );
   }
 
-  const payload = {
+  const payload = removeUndefined({
     ...data,
     createdAt: Date.now(),
-  };
+  });
 
-  const docRef = await addDoc(collection(db, GALLERY_COLLECTION), payload);
+  const docRef = await addDoc(
+    collection(db, GALLERY_COLLECTION),
+    payload
+  );
 
   return docRef.id;
 }
@@ -493,12 +578,16 @@ export async function deleteGalleryItemFirestore(
     );
   }
 
-  await deleteDoc(doc(db, GALLERY_COLLECTION, galleryId));
+  await deleteDoc(
+    doc(db, GALLERY_COLLECTION, galleryId)
+  );
 }
 
-// -------------------------------------------------------------
-// USERS & BOD APPROVAL MANAGEMENT
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * USERS & BOD APPROVAL MANAGEMENT
+ * -------------------------------------------------------------
+ */
 
 export function subscribeToUsers(
   onData: (users: UserProfile[]) => void,
@@ -520,7 +609,9 @@ export function subscribeToUsers(
             assignedAvenue: data.assignedAvenue as
               | AvenueOfService
               | undefined,
-            bodStatus: data.bodStatus as BODApprovalStatus | undefined,
+            bodStatus: data.bodStatus as
+              | BODApprovalStatus
+              | undefined,
             rejectionReason: data.rejectionReason,
             approvedBy: data.approvedBy,
             approvedAt: data.approvedAt,
@@ -534,11 +625,16 @@ export function subscribeToUsers(
         onData(users);
       },
       (err) => {
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -590,19 +686,24 @@ export async function updateBODApprovalStatus(
   });
 }
 
-// -------------------------------------------------------------
-// MEMBERSHIP / INQUIRY APPLICATIONS
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * MEMBERSHIP / INQUIRY APPLICATIONS
+ * -------------------------------------------------------------
+ */
 
 export async function submitMembershipApplication(
-  appData: Omit<MembershipApplication, 'id' | 'appliedDate' | 'status'>
+  appData: Omit<
+    MembershipApplication,
+    'id' | 'appliedDate' | 'status'
+  >
 ): Promise<string> {
-  const payload = {
+  const payload = removeUndefined({
     ...appData,
     appliedDate: new Date().toISOString().split('T')[0],
     status: 'pending',
     createdAt: Date.now(),
-  };
+  });
 
   const docRef = await addDoc(
     collection(db, APPLICATIONS_COLLECTION),
@@ -645,11 +746,16 @@ export function subscribeToApplications(
         onData(apps);
       },
       (err) => {
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -682,14 +788,22 @@ export async function migrateLocalEventsToFirestore(
 
   for (const ev of localEvents) {
     try {
-      const { id, createdAt, updatedAt, ...payload } = ev;
+      const {
+        id,
+        createdAt,
+        updatedAt,
+        ...payload
+      } = ev;
 
-      await addDoc(collection(db, EVENTS_COLLECTION), {
-        ...payload,
-        createdBy: userProfile.uid,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+      await addDoc(
+        collection(db, EVENTS_COLLECTION),
+        removeUndefined({
+          ...payload,
+          createdBy: userProfile.uid,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      );
 
       successCount++;
     } catch (err: any) {
@@ -697,12 +811,17 @@ export async function migrateLocalEventsToFirestore(
     }
   }
 
-  return { successCount, errors };
+  return {
+    successCount,
+    errors,
+  };
 }
 
-// -------------------------------------------------------------
-// TEAM PROFILES & PROFILE PHOTO MANAGEMENT
-// -------------------------------------------------------------
+/**
+ * -------------------------------------------------------------
+ * TEAM PROFILES & PROFILE PHOTO MANAGEMENT
+ * -------------------------------------------------------------
+ */
 
 /**
  * Convert and compress profile photo to a web-safe data URL.
@@ -729,12 +848,16 @@ export async function uploadProfilePhotoToStorage(
 
         if (width > height) {
           if (width > maxDim) {
-            height = Math.round((height * maxDim) / width);
+            height = Math.round(
+              (height * maxDim) / width
+            );
             width = maxDim;
           }
         } else {
           if (height > maxDim) {
-            width = Math.round((width * maxDim) / height);
+            width = Math.round(
+              (width * maxDim) / height
+            );
             height = maxDim;
           }
         }
@@ -745,21 +868,38 @@ export async function uploadProfilePhotoToStorage(
         const ctx = canvas.getContext('2d');
 
         if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.85));
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            width,
+            height
+          );
+
+          resolve(
+            canvas.toDataURL(
+              'image/jpeg',
+              0.85
+            )
+          );
         } else {
-          resolve(e.target?.result as string);
+          resolve(
+            e.target?.result as string
+          );
         }
       };
 
       img.onerror = () => {
-        resolve(e.target?.result as string);
+        resolve(
+          e.target?.result as string
+        );
       };
 
       img.src = e.target?.result as string;
     };
 
     reader.onerror = reject;
+
     reader.readAsDataURL(file);
   });
 }
@@ -768,17 +908,23 @@ export async function uploadProfilePhotoToStorage(
  * Real-time subscription to team member profiles & photos
  */
 export function subscribeToTeamProfiles(
-  onData: (profiles: Record<string, Partial<ClubMember>>) => void,
+  onData: (
+    profiles: Record<string, Partial<ClubMember>>
+  ) => void,
   onError?: (error: Error) => void
 ) {
   try {
     return onSnapshot(
       collection(db, TEAM_PROFILES_COLLECTION),
       (snapshot) => {
-        const result: Record<string, Partial<ClubMember>> = {};
+        const result: Record<
+          string,
+          Partial<ClubMember>
+        > = {};
 
         snapshot.docs.forEach((d) => {
-          result[d.id] = d.data() as Partial<ClubMember>;
+          result[d.id] =
+            d.data() as Partial<ClubMember>;
         });
 
         onData(result);
@@ -789,11 +935,16 @@ export function subscribeToTeamProfiles(
           err.message
         );
 
-        if (onError) onError(err);
+        if (onError) {
+          onError(err);
+        }
       }
     );
   } catch (err: any) {
-    if (onError) onError(err);
+    if (onError) {
+      onError(err);
+    }
+
     return () => { };
   }
 }
@@ -807,23 +958,34 @@ export async function updateTeamMemberProfile(
   updates: Partial<ClubMember>,
   userProfile: UserProfile
 ): Promise<void> {
-  // Permission checks:
-  // CORE TEAM: Can edit/upload/remove photos and profiles for ALL Core Team and BOD members.
-  // BOD: Can edit their OWN profile/photo. Cannot edit another BOD member's profile.
-  // MEMBER: Can edit only their own member profile/photo. Cannot modify Core Team/BOD public profiles.
+  /*
+   * CORE TEAM:
+   * Can edit/upload/remove photos and profiles for
+   * ALL Core Team and BOD members.
+   *
+   * BOD:
+   * Can edit their OWN profile/photo.
+   *
+   * MEMBER:
+   * Can edit only their own member profile/photo.
+   */
 
   if (userProfile.role !== 'core_team') {
     const isOwnBOD =
       userProfile.role === 'bod' &&
-      (userProfile.position === memberKey ||
+      (
+        userProfile.position === memberKey ||
         userProfile.displayName === memberKey ||
         userProfile.email === memberKey ||
-        userProfile.uid === memberKey);
+        userProfile.uid === memberKey
+      );
 
     const isOwnMember =
       userProfile.role === 'member' &&
-      (userProfile.uid === memberKey ||
-        userProfile.email === memberKey);
+      (
+        userProfile.uid === memberKey ||
+        userProfile.email === memberKey
+      );
 
     if (!isOwnBOD && !isOwnMember) {
       throw new Error(
@@ -832,16 +994,22 @@ export async function updateTeamMemberProfile(
     }
   }
 
-  const cleanDocId = memberKey.replace(/[\/\\]/g, '_');
-  const docRef = doc(db, TEAM_PROFILES_COLLECTION, cleanDocId);
+  const cleanDocId =
+    memberKey.replace(/[\/\\]/g, '_');
+
+  const docRef = doc(
+    db,
+    TEAM_PROFILES_COLLECTION,
+    cleanDocId
+  );
 
   await setDoc(
     docRef,
-    {
+    removeUndefined({
       ...updates,
       updatedAt: Date.now(),
       updatedBy: userProfile.displayName,
-    },
+    }),
     { merge: true }
   );
 }
@@ -856,15 +1024,19 @@ export async function removeTeamMemberPhoto(
   if (userProfile.role !== 'core_team') {
     const isOwnBOD =
       userProfile.role === 'bod' &&
-      (userProfile.position === memberKey ||
+      (
+        userProfile.position === memberKey ||
         userProfile.displayName === memberKey ||
         userProfile.email === memberKey ||
-        userProfile.uid === memberKey);
+        userProfile.uid === memberKey
+      );
 
     const isOwnMember =
       userProfile.role === 'member' &&
-      (userProfile.uid === memberKey ||
-        userProfile.email === memberKey);
+      (
+        userProfile.uid === memberKey ||
+        userProfile.email === memberKey
+      );
 
     if (!isOwnBOD && !isOwnMember) {
       throw new Error(
@@ -873,8 +1045,14 @@ export async function removeTeamMemberPhoto(
     }
   }
 
-  const cleanDocId = memberKey.replace(/[\/\\]/g, '_');
-  const docRef = doc(db, TEAM_PROFILES_COLLECTION, cleanDocId);
+  const cleanDocId =
+    memberKey.replace(/[\/\\]/g, '_');
+
+  const docRef = doc(
+    db,
+    TEAM_PROFILES_COLLECTION,
+    cleanDocId
+  );
 
   await updateDoc(docRef, {
     photoUrl: null,
